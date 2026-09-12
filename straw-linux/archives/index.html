@@ -99,67 +99,91 @@
             padding: 40px;
             display: none;
         }
+        .loading {
+            text-align: center;
+            color: #8b949e;
+            font-size: 16px;
+            padding: 20px;
+        }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>Package Archives</h1>
-        <div class="subtitle">Official software repository for Straw Linux</div>
+        <div class="subtitle">Official software repository for Straw Linux (aarch64)</div>
 
-        <input type="text" id="searchInput" class="search-box" placeholder="Search packages (e.g. system, fastfetch, nano, python)..." onkeyup="filterPackages()">
+        <input type="text" id="searchInput" class="search-box" placeholder="Search packages..." onkeyup="filterPackages()">
 
-        <div id="packageList" class="package-list">
-            <div class="package-card" data-name="system">
-                <div class="pkg-header">
-                    <a href="system/" class="pkg-name">system</a>
-                    <span class="pkg-version">v1.0</span>
-                </div>
-                <div class="pkg-desc">Core system binaries, kernel components, and file system updates.</div>
-                <div class="pkg-command">pkg update</div>
-            </div>
-
-            <div class="package-card" data-name="neofetch">
-                <div class="pkg-header">
-                    <a href="neofetch/" class="pkg-name">neofetch</a>
-                    <span class="pkg-version">v7.1.0</span>
-                </div>
-                <div class="pkg-desc">A command-line system information tool displaying hardware and OS specs.</div>
-                <div class="pkg-command">pkg install neofetch</div>
-            </div>
-
-            <div class="package-card" data-name="fastfetch">
-                <div class="pkg-header">
-                    <a href="fastfetch/" class="pkg-name">fastfetch</a>
-                    <span class="pkg-version">v2.x</span>
-                </div>
-                <div class="pkg-desc">A faster, highly performant maintained alternative to neofetch written in C.</div>
-                <div class="pkg-command">pkg install fastfetch</div>
-            </div>
-
-            <div class="package-card" data-name="nano">
-                <div class="pkg-header">
-                    <a href="nano/" class="pkg-name">nano</a>
-                    <span class="pkg-version">v7.x</span>
-                </div>
-                <div class="pkg-desc">A small, user-friendly command-line text editor for editing config files and scripts.</div>
-                <div class="pkg-command">pkg install nano</div>
-            </div>
-
-            <div class="package-card" data-name="python">
-                <div class="pkg-header">
-                    <a href="python/" class="pkg-name">python</a>
-                    <span class="pkg-version">v3.x</span>
-                </div>
-                <div class="pkg-desc">A high-level programming language interpreter for running scripts and applications.</div>
-                <div class="pkg-command">pkg install python</div>
-            </div>
-        </div>
+        <div id="loading" class="loading">Fetching packages from repository...</div>
+        <div id="packageList" class="package-list"></div>
 
         <div id="noResults" class="no-results">No packages found matching your search.</div>
     </div>
 
     <script>
+        // إعدادات مستودع الجيت هاب الخاص بك
+        const username = 'VoidCoderStudio';
+        const repo = 'VoidCoderStudio.github.io'; // اسم المستودع الخاص بك على جيت هاب
+        const folderPath = 'straw-root/stable/aarch64'; // مسار المجلد الذي يحتوي الحزم
+
+        // رابط مصفوفة الجيت هاب البرمجية (GitHub API) لقراءة الملفات
+        const apiUrl = `https://github.com{username}/${repo}/contents/${folderPath}`;
+
+        // دالة جلب البيانات من جيت هاب وعرضها
+        async function fetchPackages() {
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error('Failed to fetch repository contents');
+                
+                const files = await response.json();
+                const packageListDiv = document.getElementById('packageList');
+                document.getElementById('loading').style.display = 'none';
+
+                // تصفية الملفات للحصول على الحزم المضغوطة فقط (مثل .tar.gz أو .tar.xz)
+                const packageFiles = files.filter(file => file.type === 'file' && (file.name.endsWith('.tar.gz') || file.name.endsWith('.tar.xz')));
+
+                if (packageFiles.length === 0) {
+                    document.getElementById('noResults').style.display = 'block';
+                    document.getElementById('noResults').innerText = 'No package files found in this directory.';
+                    return;
+                }
+
+                packageFiles.forEach(file => {
+                    // 1. تنظيف اسم الحزمة وحذف الامتدادات مثل .tar.gz أو .tar.xz
+                    let rawName = file.name;
+                    let cleanName = rawName.replace('.tar.gz', '').replace('.tar.xz', '');
+                    
+                    // 2. تحديد أمر التشغيل تلقائياً (إذا كان نظام يعطيه pkg update، وباقي الحزم pkg install)
+                    let command = `pkg install ${cleanName}`;
+                    if (cleanName.toLowerCase() === 'system') {
+                        command = 'pkg update';
+                    }
+
+                    // 3. بناء الكارت الخاص بالحزمة ديناميكياً داخل الصفحة
+                    const card = document.createElement('div');
+                    card.className = 'package-card';
+                    card.setAttribute('data-name', cleanName);
+                    card.innerHTML = `
+                        <div class="pkg-header">
+                            <a href="${file.download_url}" class="pkg-name" target="_blank">${cleanName}</a>
+                            <span class="pkg-version">Stable</span>
+                        </div>
+                        <div class="pkg-desc">Official binary package for Straw Linux aarch64. File: ${rawName}</div>
+                        <div class="pkg-command">${command}</div>
+                    `;
+                    packageListDiv.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('noResults').style.display = 'block';
+                document.getElementById('noResults').innerText = 'Error loading packages. Please check repository configurations.';
+            }
+        }
+
+        // دالة الفلترة والبحث التي كتبتها أنت مسبقاً
         function filterPackages() {
             let input = document.getElementById('searchInput').value.toLowerCase();
             let cards = document.getElementsByClassName('package-card');
@@ -178,6 +202,9 @@
 
             document.getElementById('noResults').style.display = visibleCount === 0 ? "block" : "none";
         }
+
+        // تشغيل الدالة فور فتح الصفحة
+        fetchPackages();
     </script>
 
 </body>
