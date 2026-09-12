@@ -111,66 +111,69 @@
 
     <div class="container">
         <h1>Package Archives</h1>
-        <div class="subtitle">Official software repository for Straw Linux (aarch64)</div>
+        <div class="subtitle">Official software repository for Straw Linux</div>
 
-        <input type="text" id="searchInput" class="search-box" placeholder="Search packages..." onkeyup="filterPackages()">
+        <input type="text" id="searchInput" class="search-box" placeholder="Search packages (e.g. system, fastfetch, nano)..." onkeyup="filterPackages()">
 
-        <div id="loading" class="loading">Fetching packages from repository...</div>
+        <div id="loading" class="loading">Loading live packages from archive...</div>
         <div id="packageList" class="package-list"></div>
 
         <div id="noResults" class="no-results">No packages found matching your search.</div>
     </div>
 
     <script>
-        // إعدادات مستودع الجيت هاب الخاص بك
-        const username = 'VoidCoderStudio';
-        const repo = 'VoidCoderStudio.github.io'; // اسم المستودع الخاص بك على جيت هاب
-        const folderPath = 'straw-root/stable/aarch64'; // مسار المجلد الذي يحتوي الحزم
+        // الرابط المباشر للمجلد الخاص بك كما طلبته تماماً
+        const baseArchiveUrl = "https://VoidCoderStudio.github.io/straw-root/stable/aarch64/";
 
-        // رابط مصفوفة الجيت هاب البرمجية (GitHub API) لقراءة الملفات
-        const apiUrl = `https://VoidCoderStudio.github.io/$/contents/${folderPath}`;
+        // تحويل الرابط تلقائياً إلى صيغة الـ API الخاصة بـ GitHub لقراءة أسماء الحزم بداخل المجلد
+        const apiTargetUrl = "https://github.com";
 
-        // دالة جلب البيانات من جيت هاب وعرضها
-        async function fetchPackages() {
+        async function loadArchivePackages() {
             try {
-                const response = await fetch(apiUrl);
-                if (!response.ok) throw new Error('Failed to fetch repository contents');
+                const response = await fetch(apiTargetUrl);
+                if (!response.ok) throw new Error('Cannot access raw repository directory');
                 
                 const files = await response.json();
                 const packageListDiv = document.getElementById('packageList');
                 document.getElementById('loading').style.display = 'none';
 
-                // تصفية الملفات للحصول على الحزم المضغوطة فقط (مثل .tar.gz أو .tar.xz)
-                const packageFiles = files.filter(file => file.type === 'file' && (file.name.endsWith('.tar.gz') || file.name.endsWith('.tar.xz')));
+                // تصفية الملفات لالتقاط الإمتدادات المدعومة في الأرشيف الخاص بك
+                const archiveFiles = files.filter(file => file.type === 'file' && (file.name.endsWith('.tar.gz') || file.name.endsWith('.tar.xz') || file.name.endsWith('.tar')));
 
-                if (packageFiles.length === 0) {
+                if (archiveFiles.length === 0) {
                     document.getElementById('noResults').style.display = 'block';
-                    document.getElementById('noResults').innerText = 'No package files found in this directory.';
+                    document.getElementById('noResults').innerText = 'The archive directory is currently empty.';
                     return;
                 }
 
-                packageFiles.forEach(file => {
-                    // 1. تنظيف اسم الحزمة وحذف الامتدادات مثل .tar.gz أو .tar.xz
-                    let rawName = file.name;
-                    let cleanName = rawName.replace('.tar.gz', '').replace('.tar.xz', '');
+                archiveFiles.forEach(file => {
+                    // 1. استخراج اسم الحزمة الأصلي وحذف الإمتدادات تنفيذاً لطلبك
+                    let rawFileName = file.name;
+                    let cleanPkgName = rawFileName.replace('.tar.gz', '').replace('.tar.xz', '').replace('.tar', '');
                     
-                    // 2. تحديد أمر التشغيل تلقائياً (إذا كان نظام يعطيه pkg update، وباقي الحزم pkg install)
-                    let command = `pkg install ${cleanName}`;
-                    if (cleanName.toLowerCase() === 'system') {
-                        command = 'pkg update';
+                    // 2. تخصيص أمر التشغيل تلقائياً (pkg update لحزمة الـ system، و pkg install للبقية)
+                    let runCommand = `pkg install ${cleanPkgName}`;
+                    let descriptionText = `Official software package for Straw Linux. compiled binary archive.`;
+                    
+                    if (cleanPkgName.toLowerCase() === 'system') {
+                        runCommand = 'pkg update';
+                        descriptionText = 'Core system binaries, kernel components, and file system updates.';
                     }
 
-                    // 3. بناء الكارت الخاص بالحزمة ديناميكياً داخل الصفحة
+                    // الرابط المباشر للتحميل من مجلد الـ stable/aarch64
+                    let fileDownloadLink = baseArchiveUrl + rawFileName;
+
+                    // 3. بناء كارت الحزمة وعرضه في الواجهة ديناميكياً
                     const card = document.createElement('div');
                     card.className = 'package-card';
-                    card.setAttribute('data-name', cleanName);
+                    card.setAttribute('data-name', cleanPkgName);
                     card.innerHTML = `
                         <div class="pkg-header">
-                            <a href="${file.download_url}" class="pkg-name" target="_blank">${cleanName}</a>
-                            <span class="pkg-version">Stable</span>
+                            <a href="${fileDownloadLink}" class="pkg-name" target="_blank">${cleanPkgName}</a>
+                            <span class="pkg-version">aarch64</span>
                         </div>
-                        <div class="pkg-desc">Official binary package for Straw Linux aarch64. File: ${rawName}</div>
-                        <div class="pkg-command">${command}</div>
+                        <div class="pkg-desc">${descriptionText} <br><small style="color: #6e7681;">File: ${rawFileName}</small></div>
+                        <div class="pkg-command">${runCommand}</div>
                     `;
                     packageListDiv.appendChild(card);
                 });
@@ -179,11 +182,11 @@
                 console.error(error);
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('noResults').style.display = 'block';
-                document.getElementById('noResults').innerText = 'Error loading packages. Please check repository configurations.';
+                document.getElementById('noResults').innerText = 'Error reading file index from the stable aarch64 server.';
             }
         }
 
-        // دالة الفلترة والبحث التي كتبتها أنت مسبقاً
+        // دالة الفلترة والبحث الفوري في الكروت المكتشفة
         function filterPackages() {
             let input = document.getElementById('searchInput').value.toLowerCase();
             let cards = document.getElementsByClassName('package-card');
@@ -203,8 +206,8 @@
             document.getElementById('noResults').style.display = visibleCount === 0 ? "block" : "none";
         }
 
-        // تشغيل الدالة فور فتح الصفحة
-        fetchPackages();
+        // تشغيل كاشف الأرشيف فور إقلاع الصفحة
+        loadArchivePackages();
     </script>
 
 </body>
